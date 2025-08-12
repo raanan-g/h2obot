@@ -1,0 +1,19 @@
+{
+  "name": "h2obot-monorepo",
+  "private": true,
+  "workspaces": [
+    "frontend",
+    "backend"
+  ],
+  "scripts": {
+    "frontend:dev": "npm --workspace frontend run dev",
+    "backend:dev": "npm --workspace backend run dev",
+    "backend:start": "npm --workspace backend start"
+  },
+  "dependencies": {
+    "cheerio": "^1.1.2",
+    "chrono-node": "^2.8.4",
+    "cross-fetch": "^4.1.0",
+    "pdf-parse": "^1.1.1"
+  }
+}

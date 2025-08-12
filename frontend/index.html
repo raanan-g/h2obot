@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>H2obot</title>
+    <script>
+      // Set defaults for local testing: JSON mode against localhost backend
+      window.H2OBOT_MODE = window.H2OBOT_MODE || 'JSON'; // 'MOCK' | 'JSON' | 'SSE'
+      window.H2OBOT_API_BASE = window.H2OBOT_API_BASE || 'http://localhost:8787';
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>
