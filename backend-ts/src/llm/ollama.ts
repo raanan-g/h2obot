@@ -1,3 +1,4 @@
+// src/llm/ollama.ts
 export interface ChatOpts { system?: string; temperature?: number; }
 
 export async function summarizeWithOllamaJSON(prompt: string, opts: ChatOpts = {}) {

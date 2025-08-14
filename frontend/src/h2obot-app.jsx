@@ -108,10 +108,29 @@ export default function H2obotApp(){
   function appendDelta(text){ setMessages(m=>{ const n=[...m]; for(let i=n.length-1;i>=0;i--){ if(n[i].role==='assistant' && !n[i].done){ n[i] = { ...n[i], content: (n[i].content||'') + text }; break; } } return n; }); scrollDown(); }
 
   // --- Transport helpers ----------------------------------------------------
-  async function doJSON(history, loc){
-    const data = await postJSON(CONFIG.API_BASE, '/api/h2obot/query', { messages: history, location: loc });
-    setMessages(m=>[...m, { role:'assistant', content: data?.answer||'(No answer)', sources: toArray(data?.sources), safety: data?.safety||{}, suggestions: toArray(data?.suggestions), done:true }]);
-  }
+ async function doJSON(history, loc){
+  // Ensure there is a pending assistant bubble to host the placeholder
+  setMessages(m=>{
+    const n=[...m];
+    const last=n[n.length-1];
+    if(!(last && last.role==='assistant' && !last.done)){
+      n.push({ role:'assistant', content:'', sources:[], safety:{}, suggestions:[], done:false });
+    }
+    return n;
+  });
+
+  // While waiting, the PATCH 1 block will render “Searching …” in that bubble
+  const data = await postJSON(CONFIG.API_BASE, '/api/h2obot/query', { messages: history, location: loc });
+
+  // Fill the pending assistant bubble with the real content
+  applyAssistantPatch({
+    content: data?.answer || '(No answer)',
+    sources: toArray(data?.sources),
+    safety: data?.safety || {},
+    suggestions: toArray(data?.suggestions),
+    done: true,
+  });
+}
 
   async function trySSE(history, loc, { timeoutMs = 4000 } = {}){
     if (!('EventSource' in window)) return false; // no support
@@ -236,14 +255,21 @@ export default function H2obotApp(){
         <div className="card">
           <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', borderBottom:'1px solid #e5e7eb', paddingBottom:'.5rem', marginBottom:'.75rem', color:'#4b5563', fontSize:'.875rem' }}>
             <span className="badge">Messages left: {Math.max(0, MAX_USER_MESSAGES - userMsgCount)}</span>
-            {(loading || streaming) && <span style={{ display:'inline-flex', alignItems:'center', gap:'.5rem' }}>Searching <Thinking /></span>}
           </div>
 
           <div ref={threadRef} style={{ maxHeight:'60vh', overflow:'auto', padding:'0 .25rem' }}>
             {messages.map((m,i)=> (
               <div key={i} style={{ display:'flex', justifyContent: m.role==='user'?'flex-end':'flex-start', marginBottom:'.5rem' }}>
                 <div className={`bubble ${m.role}`}>
-                  <div style={{ whiteSpace:'pre-wrap', lineHeight:1.5 }}>{m.content}</div>
+                  <div style={{ whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>
+                    {(m.role === 'assistant' && !m.done && (!m.content || !m.content.trim()))
+                      ? (
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '.5rem' }}>
+                          Searching <Thinking />
+                        </span>
+                      )
+                      : m.content}
+                  </div>
 
                   {m.actions?.geolocate && (
                     <div style={{ marginTop:'.5rem', display:'flex', gap:'.5rem', flexWrap:'wrap' }}>
