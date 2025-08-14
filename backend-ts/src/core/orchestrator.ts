@@ -1,6 +1,8 @@
+// src/core/orchestrator.ts
 import { QueryRequestZ, QueryResponseZ, type QueryResponse } from '../schema';
 import { fetchAuthoritative } from '../retrievers/officialSources';
-import { summarizeWithOllamaJSON } from '../llm/ollama';
+import { summarizeWithOpenAIJSON } from '../llm/openai';
+import { summarizeWithOllamaJSON } from '../llm/ollama'; // keep existing
 
 const SYSTEM_PROMPT = `You are H2obot, a careful assistant for public water guidance.
 Summarize findings for a general audience. Prefer official sources (EPA, CDC, state DEQ, municipal utilities).
@@ -43,7 +45,11 @@ export async function handleQuery(reqBody: unknown): Promise<QueryResponse> {
 
   let llm;
   try {
-    llm = await summarizeWithOllamaJSON(prompt, { temperature: 0.1, system: SYSTEM_PROMPT });
+      if ((process.env.LLM_PROVIDER || '').toLowerCase() === 'openai') {
+        llm = await summarizeWithOpenAIJSON(prompt, { temperature: 0.1, system: SYSTEM_PROMPT });
+      } else {
+        llm = await summarizeWithOllamaJSON(prompt, { temperature: 0.1, system: SYSTEM_PROMPT });
+      }
   } catch (e) {
     // LLM unavailable -> construct a basic answer from top doc
     const top = docs[0];

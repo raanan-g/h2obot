@@ -1,6 +1,9 @@
+// src/retrievers/officialSources.ts
 import * as cheerio from 'cheerio';
-import pdfParse from 'pdf-parse';
+import * as pdfjsLib from 'pdfjs-dist/build/pdf.mjs';
 import { parseDate } from 'chrono-node';
+
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'pdfjs-dist/build/pdf.worker.mjs';
 
 export interface RetrievedDoc {
   url: string;
@@ -64,15 +67,49 @@ async function parseHtml(url: string, html: string): Promise<RetrievedDoc> {
 }
 
 async function parsePdf(url: string, buf: Buffer): Promise<RetrievedDoc> {
-  const data = await pdfParse(buf);
-  const text = cleanText(data.text || '');
+  // Load PDF from a buffer
+  const loadingTask = pdfjsLib.getDocument({
+    data: buf,
+    // Hardening flags for server-side use:
+    isEvalSupported: false,
+    useSystemFonts: true,
+    // Avoid fetch in worker since we already have the bytes:
+    useWorkerFetch: false,
+  });
+
+  const pdf = await loadingTask.promise;
+
+  // Extract text from the first ~10–12 pages to keep it fast
+  const textChunks: string[] = [];
+  const maxPages = Math.min(pdf.numPages, 12);
+  for (let p = 1; p <= maxPages; p++) {
+    const page = await pdf.getPage(p);
+    const tc = await page.getTextContent();
+    const pageText = (tc.items as any[])
+      .map((it) => ('str' in it ? it.str : (it as any).text ?? ''))
+      .join(' ');
+    textChunks.push(pageText);
+    if (textChunks.join(' ').length > 20000) break; // cap total text
+  }
+
+  const raw = textChunks.join('\n');
+  const text = raw.replace(/\s+/g, ' ').trim();
   const title = text.split('\n')[0]?.slice(0, 120) || 'PDF';
-  // Try to infer a date from the first page text
-  const parsed = parseDate(text.slice(0, 2000));
+  const parsed = parseDate(text.slice(0, 3000));
   const publishedAt = parsed ? new Date(parsed).toISOString() : undefined;
-  const snippet = cleanText(text.slice(0, 400));
-  return { url, title, text, snippet, publishedAt, contentType: 'application/pdf', tier: tierFor(url) };
+  const snippet = text.slice(0, 400);
+
+  return {
+    url,
+    title,
+    text,
+    snippet,
+    publishedAt,
+    contentType: 'application/pdf',
+    tier: tierFor(url),
+  };
 }
+
 
 async function fetchAndParse(url: string): Promise<RetrievedDoc | null> {
   try {
